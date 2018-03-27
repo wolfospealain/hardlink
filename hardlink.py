@@ -226,7 +226,8 @@ def hardlink_identical_files(directories, filename, options):
         # If it is a directory then add it to the list of directories.
         directories.append(filename)
     # Is it a regular file?
-    elif stat.S_ISREG(stat_info.st_mode):
+    elif stat.S_ISREG(stat_info[stat.ST_MODE]) and (stat_info[stat.ST_SIZE] >= options.file_size) and (
+                (stat_info[stat.ST_SIZE] <= options.max_file_size) or (options.max_file_size == 0)):
         if options.match:
             if not fnmatch.fnmatch(filename, options.match):
                 return
@@ -385,6 +386,12 @@ def parse_command_line():
 
     parser.add_option("-q", "--no-stats", help="Do not print the statistics",
                       action="store_false", dest="printstats", default=True,)
+
+    parser.add_option("-s", "--min-size", type="int", help="Minimum file size",
+                      action="store", dest="file_size", default=0,)
+
+    parser.add_option("-S", "--max-size", type="int", help="Maximum file size",
+                      action="store", dest="max_file_size", default=0,)
 
     parser.add_option("-t", "--timestamp-ignore",
                       help="File modification times do NOT have to be identical",
