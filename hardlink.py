@@ -129,7 +129,7 @@ def eligible_for_hardlink(st1,        # first file's status
 
 def are_file_contents_equal(filename1, filename2, options):
     """Determine if the contents of two files are equal"""
-    if options.verbose:
+    if options.verbose > 1:
         print "Comparing: %s" % filename1
         print "     to  : %s" % filename2
     gStats.did_comparison()
@@ -236,7 +236,7 @@ def hardlink_identical_files(directories, filename, options):
                                options.timestamp or options.properties)
         # Bump statistics count of regular files found.
         gStats.found_regular_file()
-        if options.verbose >= 2:
+        if options.verbose >= 3:
             print "File: %s" % filename
         work_file_info = (filename, stat_info)
         if file_hash in file_hashes:
