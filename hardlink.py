@@ -181,7 +181,7 @@ def hardlink_files(sourcefile, destfile, stat_info, options):
                 if options.dryrun:
                     print "Did NOT link.  Dry run"
                 print "Linked: %s" % sourcefile
-                print"     to: %s, saved %s" % (destfile, stat_info.st_size)
+                print "     to: %s, saved %s" % (destfile, stat_info.st_size)
             result = True
     return result
 
@@ -331,8 +331,8 @@ class Statistics:
                 print "Statistics reflect what would have happened if not a dry run"
             print "Files Hardlinked this run:"
             for (source, dest) in self.hardlinkstats:
-                print"Hardlinked: %s" % source
-                print"        to: %s" % dest
+                print "Hardlinked: %s" % source
+                print "        to: %s" % dest
             print
         print "Directories           : %s" % self.dircount
         print "Regular files         : %s" % self.regularfiles
