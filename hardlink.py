@@ -66,8 +66,8 @@ def hash_size(size):
     return (size) & (MAX_HASHES - 1)
 
 
-def hash_value(size, time, notimestamp):
-    if notimestamp:
+def hash_value(size, time, timestamp):
+    if not(timestamp):
         return hash_size(size)
     else:
         return hash_size_time(size, int(time))
@@ -98,17 +98,17 @@ def eligible_for_hardlink(st1,        # first file's status
         st1.st_size != 0 and                     # size is not zero
 
         (st1.st_mode == st2.st_mode or
-         options.contentonly) and                # file mode is the same
+         not(options.properties)) and  # file mode is the same
 
-        (st1.st_uid == st2.st_uid or             # owner user id is the same
-         options.contentonly) and                # OR we are comparing content only
+        (st1.st_uid == st2.st_uid or  # owner user id is the same
+         not (options.properties)) and  # OR we are comparing content only
 
-        (st1.st_gid == st2.st_gid or             # owner group id is the same
-         options.contentonly) and                # OR we are comparing content only
+        (st1.st_gid == st2.st_gid or  # owner group id is the same
+         not (options.properties)) and  # OR we are comparing content only
 
-        (st1.st_mtime == st2.st_mtime or         # modified time is the same
-         options.notimestamp or                  # OR date hashing is off
-         options.contentonly) and                # OR we are comparing content only
+        (st1.st_mtime == st2.st_mtime or  # modified time is the same
+         not (options.timestamp) or  # OR date hashing is off
+         not (options.properties)) and  # OR we are comparing content only
 
         st1.st_dev == st2.st_dev                 # device is the same
     )
@@ -122,7 +122,7 @@ def eligible_for_hardlink(st1,        # first file's status
         print "GIDs:", st1.st_gid, st2.st_gid
         print "SIZE:", st1.st_size, st2.st_size
         print "MTIME:", st1.st_mtime, st2.st_mtime
-        print "Ignore date:", options.notimestamp
+        print "Match date:", options.timestamp
         print "Device:", st1.st_dev, st2.st_dev
     return result
 
@@ -233,7 +233,7 @@ def hardlink_identical_files(directories, filename, options):
                 return
         # Create the hash for the file.
         file_hash = hash_value(stat_info.st_size, stat_info.st_mtime,
-                               options.notimestamp or options.contentonly)
+                               options.timestamp or options.properties)
         # Bump statistics count of regular files found.
         gStats.found_regular_file()
         if options.verbose >= 2:
@@ -387,7 +387,10 @@ def parse_command_line():
 
     parser.add_option("-p", "--print-previous", help="Print previously created hardlinks",
                       action="store_true", dest="printprevious", default=False,)
-
+    
+    parser.add_option("-P", "--properties", help="File properties have to match",
+                      action="store_true", dest="properties", default=False, )
+    
     parser.add_option("-q", "--no-stats", help="Do not print the statistics",
                       action="store_false", dest="printstats", default=True,)
 
@@ -397,13 +400,8 @@ def parse_command_line():
     parser.add_option("-S", "--max-size", type="int", help="Maximum file size",
                       action="store", dest="max_file_size", default=0,)
 
-    parser.add_option("-t", "--timestamp-ignore",
-                      help="File modification times do NOT have to be identical",
-                      action="store_true", dest="notimestamp", default=False,)
-
-    parser.add_option("-c", "--content-only",
-                      help="Only file contents have to match",
-                      action="store_true", dest="contentonly", default=False,)
+    parser.add_option("-T", "--timestamp", help="File modification times have to be identical",
+                      action="store_true", dest="timestamp", default=False,)
 
     parser.add_option("-v", "--verbose",
                       help="Verbosity level (default: %default)", metavar="LEVEL",
