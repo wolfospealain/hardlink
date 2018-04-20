@@ -255,11 +255,15 @@ def hardlink_identical_files(directories, filename, options):
                 for (temp_filename, temp_stat_info) in file_hashes[file_hash]:
                     if are_files_hardlinkable(work_file_info, (temp_filename, temp_stat_info),
                                               options):
+                        # Find the attributes of the newest file
+                        update_stat_info = os.stat(temp_filename)
+                        if stat_info.st_mtime > update_stat_info.st_mtime:
+                            update_stat_info = stat_info
                         # Always use the file with the most hardlinks as the source
-                        if (stat_info.st_nlink > temp_stat_info.st_nlink):
-                            hardlink_files(filename, temp_filename, temp_stat_info, options)
+                        if stat_info.st_nlink > temp_stat_info.st_nlink:
+                            hardlink_files(filename, temp_filename, update_stat_info, options)
                         else:
-                            hardlink_files(temp_filename, filename, temp_stat_info, options)
+                            hardlink_files(temp_filename, filename, update_stat_info, options)
                         break
                 else:
                     # The file should NOT be hardlinked to any of the other
