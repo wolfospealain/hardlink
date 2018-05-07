@@ -67,7 +67,7 @@ def hash_size(size):
 
 
 def hash_value(size, time, timestamp):
-    if not(timestamp):
+    if not timestamp:
         return hash_size(size)
     else:
         return hash_size_time(size, int(time))
@@ -98,17 +98,17 @@ def eligible_for_hardlink(st1,        # first file's status
         st1.st_size != 0 and                     # size is not zero
 
         (st1.st_mode == st2.st_mode or
-         not(options.properties)) and  # file mode is the same
+         not options.properties) and  # file mode is the same
 
         (st1.st_uid == st2.st_uid or  # owner user id is the same
-         not (options.properties)) and  # OR we are comparing content only
+         not options.properties) and  # OR we are comparing content only
 
         (st1.st_gid == st2.st_gid or  # owner group id is the same
-         not (options.properties)) and  # OR we are comparing content only
+         not options.properties) and  # OR we are comparing content only
 
         (st1.st_mtime == st2.st_mtime or  # modified time is the same
-         not (options.timestamp) or  # OR date hashing is off
-         not (options.properties)) and  # OR we are comparing content only
+         not options.timestamp or  # OR date hashing is off
+         not options.properties) and  # OR we are comparing content only
 
         st1.st_dev == st2.st_dev                 # device is the same
     )
