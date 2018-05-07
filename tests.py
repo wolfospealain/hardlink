@@ -89,7 +89,7 @@ class TestHappy(unittest.TestCase):
 
         self.assertEqual(get_inode("dir1/name3.ext"), get_inode("dir3/name1.ext"))
 
-        self.assertNotEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
+        self.assertEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
 
     def test_hardlink_tree_filenames_equal(self):
         sys.argv = ["hardlink.py", "-v", "0", "--no-stats", "--filenames-equal", self.root]
@@ -103,7 +103,7 @@ class TestHappy(unittest.TestCase):
 
         self.assertNotEqual(get_inode("dir1/name3.ext"), get_inode("dir3/name1.ext"))
 
-        self.assertNotEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
+        self.assertEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
 
     def test_hardlink_tree_exclude(self):
         sys.argv = ["hardlink.py", "-v", "0", "--no-stats", "--exclude", ".*noext$", self.root]
@@ -117,10 +117,10 @@ class TestHappy(unittest.TestCase):
 
         self.assertEqual(get_inode("dir1/name3.ext"), get_inode("dir3/name1.ext"))
 
-        self.assertNotEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
+        self.assertEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
 
-    def test_hardlink_tree_timestamp_ignore(self):
-        sys.argv = ["hardlink.py", "-v", "0", "--no-stats", "--timestamp-ignore", self.root]
+    def test_hardlink_tree_timestamp(self):
+        sys.argv = ["hardlink.py", "-v", "0", "--no-stats", "-T", self.root]
         hardlink.main()
 
         self.verify_file_contents()
@@ -131,7 +131,7 @@ class TestHappy(unittest.TestCase):
 
         self.assertEqual(get_inode("dir1/name3.ext"), get_inode("dir3/name1.ext"))
 
-        self.assertEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
+        self.assertNotEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
 
     def test_hardlink_tree_match(self):
         sys.argv = ["hardlink.py", "-v", "0", "--no-stats", "--match", "*.ext", self.root]
@@ -145,7 +145,7 @@ class TestHappy(unittest.TestCase):
 
         self.assertEqual(get_inode("dir1/name3.ext"), get_inode("dir3/name1.ext"))
 
-        self.assertNotEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
+        self.assertEqual(get_inode("dir1/name1.ext"), get_inode("dir4/name1.ext"))
 
 
 if __name__ == '__main__':
