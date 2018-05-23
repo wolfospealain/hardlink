@@ -225,9 +225,11 @@ def hardlink_identical_files(directories, filename, options):
     if stat.S_ISDIR(stat_info.st_mode):
         # If it is a directory then add it to the list of directories.
         directories.append(filename)
-    # Is it a regular file?
-    elif stat.S_ISREG(stat_info[stat.ST_MODE]) and (stat_info[stat.ST_SIZE] >= options.file_size) and (
-                (stat_info[stat.ST_SIZE] <= options.max_file_size) or (options.max_file_size == 0)):
+    # Is it a regular file, within size limits, and with less than the maximum hardlinks already?
+    elif stat.S_ISREG(stat_info[stat.ST_MODE]) \
+            and (stat_info[stat.ST_SIZE] >= options.file_size) \
+            and ((stat_info[stat.ST_SIZE] <= options.max_file_size) or (options.max_file_size == 0)) \
+            and (stat_info.st_nlink < os.pathconf(filename, "PC_LINK_MAX")):
         if options.match:
             if not fnmatch.fnmatch(filename, options.match):
                 return
