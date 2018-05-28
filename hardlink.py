@@ -181,7 +181,7 @@ def hardlink_files(sourcefile, destfile, stat_info, options):
                 if options.dryrun:
                     print "Did NOT link.  Dry run"
                 print "Linked: %s" % sourcefile
-                print "     to: %s, saved %s" % (destfile, stat_info.st_size)
+                print "     to: %s, saved %s" % (destfile, humanize_number(stat_info.st_size))
             result = True
     return result
 
@@ -353,12 +353,12 @@ class Statistics:
 
 def humanize_number(number):
     if number > 1024 ** 3:
-        return ("%.3f gibibytes" % (number / (1024.0 ** 3)))
+        return ("%.3f GiB" % (number / (1024.0 ** 3)))
     if number > 1024 ** 2:
-        return ("%.3f mebibytes" % (number / (1024.0 ** 2)))
+        return ("%.3f MiB" % (number / (1024.0 ** 2)))
     if number > 1024:
         return ("%.3f KiB" % (number / 1024.0))
-    return ("%d bytes" % number)
+    return ("%d B" % number)
 
 
 def printversion(self):
