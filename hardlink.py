@@ -162,6 +162,9 @@ def hardlink_files(sourcefile, destfile, stat_info, options):
         try:
             if not options.dryrun:
                 os.link(sourcefile, destfile)
+                # Update destination to latest attributes
+                os.chown(destfile, stat_info.st_uid, stat_info.st_gid)
+                os.utime(destfile, (stat_info.st_atime, stat_info.st_mtime))
         except Exception as error:
             print "Failed to hardlink: %s to %s: %s" % (sourcefile, destfile, error)
             # Try to recover
