@@ -174,8 +174,11 @@ def hardlink_files(sourcefile, destfile, stat_info, options, update):
             # hard link succeeded
             # Update destination to latest attributes
             if update:
-                os.chown(destfile, stat_info.st_uid, stat_info.st_gid)
-                os.utime(destfile, (stat_info.st_atime, stat_info.st_mtime))
+                try:
+                    os.chown(destfile, stat_info.st_uid, stat_info.st_gid)
+                    os.utime(destfile, (stat_info.st_atime, stat_info.st_mtime))
+                except Exception as error:
+                    print "Failed to update file attributes: %s" %(error)
             # Delete the renamed version since we don't need it.
             if not options.dryrun:
                 os.unlink(temp_name)
