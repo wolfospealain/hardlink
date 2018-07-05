@@ -140,6 +140,8 @@ def are_file_contents_equal(filename1, filename2, options):
 def are_files_hardlinkable((filename1, stat1), (filename2, stat2), options):
     if options.samename and os.path.basename(filename1) != os.path.basename(filename2):
         result = False
+    elif stat2.st_nlink >= maximum_links:
+        result = False
     elif not eligible_for_hardlink(stat1, stat2, options):
         result = False
     else:
@@ -236,7 +238,7 @@ def hardlink_identical_files(directories, filename, options):
     elif stat.S_ISREG(stat_info[stat.ST_MODE]) \
             and (stat_info[stat.ST_SIZE] >= options.file_size) \
             and ((stat_info[stat.ST_SIZE] <= options.max_file_size) or (options.max_file_size == 0)) \
-            and (stat_info.st_nlink < os.pathconf(filename, "PC_LINK_MAX")):
+            and (stat_info.st_nlink < maximum_links:
         if options.match:
             if not fnmatch.fnmatch(filename, options.match):
                 return
@@ -461,13 +463,15 @@ VERSION = "0.05 - 2010-01-07 (07-Jan-2010)"
 
 
 def main():
-    global gStats, file_hashes
+    global maximum_links, gStats, file_hashes
 
     gStats = Statistics()
     file_hashes = {}
 
     # Parse our argument list and get our list of directories
     options, directories = parse_command_line()
+    # set maximum links from filesystem of first directory
+    maximum_links = os.pathconf(directories[0], "PC_LINK_MAX")
     # Compile up our regexes ahead of time
     MIRROR_PL_REGEX = re.compile(r'^\.in\.')
     RSYNC_TEMP_REGEX = re.compile((r'^\..*\.\?{6,6}$'))
