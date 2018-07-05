@@ -238,7 +238,7 @@ def hardlink_identical_files(directories, filename, options):
     elif stat.S_ISREG(stat_info[stat.ST_MODE]) \
             and (stat_info[stat.ST_SIZE] >= options.file_size) \
             and ((stat_info[stat.ST_SIZE] <= options.max_file_size) or (options.max_file_size == 0)) \
-            and (stat_info.st_nlink < maximum_links:
+            and (stat_info.st_nlink < maximum_links):
         if options.match:
             if not fnmatch.fnmatch(filename, options.match):
                 return
