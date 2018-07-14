@@ -347,7 +347,7 @@ def parse_command_line(version, install_path):
                         action="append", dest="excluding", default=[])
     parser.add_argument("-m", "--match", help="shell pattern used to match files", metavar="PATTERN", action="store",
                         dest="matching", default=None)
-    parser.add_argument("directories", help="one or more search directories", nargs='?')
+    parser.add_argument("directories", help="one or more search directories", nargs='*')
     args = parser.parse_args()
     if args.directories:
         directories = [os.path.abspath(os.path.expanduser(directory)) for directory in args.directories]
