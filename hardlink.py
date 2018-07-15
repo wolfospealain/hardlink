@@ -2,7 +2,7 @@
 
 """
 Scan for and hardlink identical files.
-https://github.com/wolfospealain/hardlinkpy
+https://github.com/wolfospealain/hardlink
 Wolf Ó Spealáin, July 2018
 Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses/gpl.html
 Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
@@ -316,7 +316,7 @@ def human(number):
 
 def parse_command_line(version, install_path):
     description = "%(prog)s version " + version + ". " \
-                  + "Scan for and hardlink identical files."
+                  + "Scan for and hardlink identical files. https://github.com/wolfospealain/hardlink"
     parser = argparse.ArgumentParser(description=description)
     if ".py" in sys.argv[0]:
         parser.add_argument("--install", action="store_true", dest="install", default=False,
