@@ -5,16 +5,16 @@ Scan for and hardlink identical files.
 https://github.com/wolfospealain/hardlinkpy
 Wolf Ó Spealáin, July 2018
 Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses/gpl.html
-Forked, developed, restructured and refactored as Python 3 object-oriented code,
-from hardlink.py https://github.com/akaihola/hardlinkpy,
+Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
 from the original by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/.
+Restructured and refactored as Python 3 object-oriented code: new database structure and algorithm development.
 """
 
 import subprocess, sys, os, re, time, fnmatch, filecmp, argparse, logging
 
 
 class File:
-    """Defines an file inode object based on dirEntry"""
+    """Defines an file inode object based on os.scandir() DirEntry"""
 
     def __init__(self, directory_entry):
         self.inode = directory_entry.stat().st_ino
