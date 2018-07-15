@@ -12,7 +12,7 @@ usage: hardlink.py [-h] [--install] [-d] [-f] [-n] [-p] [-P] [-q] [-o]
                    [-x REGEX] [-m PATTERN]
                    [directories [directories ...]]
 
-hardlink.py version 18.07. Scan for and hardlink identical files.
+hardlink.py version 18.07. Scan for and hardlink identical files. https://github.com/wolfospealain/hardlink
 
 positional arguments:
   directories           one or more search directories
