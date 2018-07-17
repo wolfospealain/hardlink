@@ -177,33 +177,37 @@ class FileDatabase:
         inode_count = 0
         file_count = 0
         already_links = 0
-        total_new_links = 0
+        added_links = 0
+        updated_links = 0
         total_saved_bytes = 0
-        total_already_saved = 0
-        run_time = round((time.time() - self.start_time), 3)
+        total_saved_already = 0
         for fingerprint in self.fingerprints:
             inode_count += len(self.fingerprints[fingerprint])
             for inode in self.fingerprints[fingerprint]:
-                already_saved = 0
+                saved_already = 0
                 saved_bytes = 0
                 size = self.fingerprints[fingerprint][inode].size
                 for file in self.fingerprints[fingerprint][inode].files:
-                    file_count += 1
                     if inode[0]:
+                        file_count += 1
                         if self.fingerprints[fingerprint][inode].files[file][1] > 1:
                             new_links = self.fingerprints[fingerprint][inode].files[file][1] - 1
                             saved_bytes += size * new_links
-                            total_new_links += new_links
+                            if self.fingerprints[fingerprint][inode].files[file][0] > 1:
+                                updated_links += new_links
+                            else:
+                                added_links += new_links
                     if self.fingerprints[fingerprint][inode].files[file][0] > 1:
-                        already_saved += size
+                        saved_already += size
                         already_links += 1
-                if already_saved:
-                    total_already_saved += already_saved - size
+                if saved_already:
+                    total_saved_already += saved_already - size
                 total_saved_bytes += saved_bytes
+        run_time = round((time.time() - self.start_time), 3)
         return "\nSTATISTICS\n\nInodes:\t\t" + str(inode_count) + "\nFiles:\t\t" + str(
             file_count) + "\nFingerprints:\t" + str(fingerprint_count) + "\nAlready Linked:\t" + str(
-            already_links) + "\nAlready Saved:\t" + str(
-            human(total_already_saved) + "\nNew Links:\t" + str(total_new_links) + "\nSaved Bytes:\t" + str(
+            already_links) + "\nSaved Already:\t" + str(
+            human(total_saved_already) + "\nUpdated Links:\t" + str(updated_links) + "\nAdded Links:\t" + str(added_links) + "\nSaved Bytes:\t" + str(
                 human(total_saved_bytes)) + "\nRun Time:\t" + str(run_time) + "s")
 
 
@@ -356,7 +360,7 @@ def parse_command_line(version, install_path):
                 parser.print_help()
                 print("\nERROR: %s is NOT a directory" % directory)
                 sys.exit(1)
-    elif args.install:
+    elif ".py" in sys.argv[0] and args.install:
         directories = [install_path]
     else:
         print("ERROR: specify one or more search directories")
