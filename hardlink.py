@@ -50,7 +50,7 @@ class File:
                     os.rename(link, temporary_name)
             except OSError as error:
                 print("ERROR: Failed to rename: %s to %s: %s" % (link, temporary_name, error))
-                return False
+                return False, False
             else:
                 # attempt hardlink
                 try:
