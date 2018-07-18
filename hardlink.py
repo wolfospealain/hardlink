@@ -64,7 +64,7 @@ class File:
                         os.rename(temporary_name, link)
                     except Exception as error:
                         print("ALERT: Failed to rename back %s to %s: %s" % (temporary_name, link, error))
-                    return False
+                    return False, False
                 else:
                     # hardlink succeeded, update links
                     source.files.update({link: (destination.files[link][0], 1)})
@@ -296,7 +296,8 @@ class SearchSpace:
                                             print("       to: %s" % known_file.path)
                                         if filecmp.cmp(new_file.path, known_file.path, shallow=False):
                                             update_inode, clear_inode = known_file.hardlink(new_file, dry_run, verbose)
-                                            self.database.update(update_inode, fingerprint)
+                                            if update_inode:
+                                                self.database.update(update_inode, fingerprint)
                                             if clear_inode:
                                                 self.database.archive(clear_inode, fingerprint)
                                             break
