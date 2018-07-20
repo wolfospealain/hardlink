@@ -49,7 +49,7 @@ class File:
                 if not dry_run:
                     os.rename(link, temporary_name)
             except OSError as error:
-                print("ERROR: Failed to rename: %s to %s: %s" % (link, temporary_name, error))
+                print("\nERROR: Failed to rename: %s to %s: %s" % (link, temporary_name, error))
                 return False, False
             else:
                 # attempt hardlink
@@ -58,26 +58,29 @@ class File:
                         logging.debug("HARDLINKING " + source.path + " " + link)
                         os.link(source.path, link)
                 except Exception as error:
-                    print("Failed to hardlink: %s to %s: %s" % (source.path, link, error))
+                    print("\nFailed to hardlink: %s to %s: %s" % (source.path, link, error))
                     # attempt recovery
                     try:
                         os.rename(temporary_name, link)
                     except Exception as error:
-                        print("ALERT: Failed to rename back %s to %s: %s" % (temporary_name, link, error))
+                        print("\nALERT: Failed to rename back %s to %s: %s" % (temporary_name, link, error))
                     return False, False
                 else:
                     # hardlink succeeded, update links
-                    source.files.update({link: (destination.files[link][0], 1)})
                     source.files.update({source.path: (source.files[source.path][0], source.files[source.path][1] + 1)})
+                    logging.debug("SOURCE " + source.path + " " +str(source.files[source.path][0]) + ", " +str(source.files[source.path][1]))
+                    logging.debug("DESTINATION " + link + " " +str(destination.files[link][0] - 1) + ", 1")
+                    source.files.update({link: (destination.files[link][0] - 1, 1)})
                     source.links += 1
                     # update to latest attributes
                     if destination.time > source.time:
                         try:
-                            os.chown(link, destination.uid, destination.gid)
-                            os.utime(link, (destination.access_time, destination.time))
-                            source.access_time = destination.access_time
+                            if not dry_run:
+                                os.chown(link, destination.uid, destination.gid)
+                                os.utime(link, (destination.access_time, destination.time))
+                                source.access_time = destination.access_time
                         except Exception as error:
-                            print("ERROR: Failed to update file attributes: %s" % error)
+                            print("\nERROR: Failed to update file attributes: %s" % error)
                         else:
                             source.time = destination.time
                             source.uid = destination.uid
@@ -91,7 +94,7 @@ class File:
                         else:
                             print("\n Linked: %s" % source.path)
                         print("     to: %s" % link)
-                        print("         saving %s" % human(destination.size if destination.links == 1 else 0))
+                        print("         saving %s" % human(destination.size if destination.links == 0 else 0))
             source.links += destination.links - 1
         return source, empty
 
