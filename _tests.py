@@ -47,7 +47,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree_dryrun(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", "--dry-run", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", "--dry-run", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("dir1/name1.ext").st_nlink, 2)  # Existing link
@@ -62,7 +62,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("dir1/name1.ext").st_ino, os.lstat("dir1/name2.ext").st_ino)
@@ -75,7 +75,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree_filenames_equal(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", "--filenames-equal", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", "--filenames-equal", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertNotEqual(os.lstat("dir1/name1.ext").st_ino, os.lstat("dir1/name2.ext").st_ino)
@@ -88,7 +88,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree_exclude(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", "--exclude", ".*noext$", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", "--exclude", ".*noext$", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("dir1/name1.ext").st_ino, os.lstat("dir1/name2.ext").st_ino)
@@ -101,7 +101,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree_timestamp(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", "-T", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", "-T", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("dir1/name1.ext").st_ino, os.lstat("dir1/name2.ext").st_ino)
@@ -114,7 +114,7 @@ class OriginalTests(unittest.TestCase):
     def test_hardlink_tree_match(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_temporary_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", "--match", "*.ext", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", "--match", "*.ext", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("dir1/name1.ext").st_ino, os.lstat("dir1/name2.ext").st_ino)
@@ -158,7 +158,7 @@ class ClusterTests(unittest.TestCase):
     def test_hardlink_cluster(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("1a").st_ino, os.lstat("1b").st_ino)
@@ -205,7 +205,7 @@ class BasicTests(unittest.TestCase):
     def test_basic_test(self):
         with tempfile.TemporaryDirectory() as root:
             self.create_files(root)
-            sys.argv = ["hardlink.py", "-v", "0", "-q", root]
+            sys.argv = ["hardlink.py", "-Y", "-v", "0", "-q", root]
             hardlink.main()
             self.verify_file_contents()
             self.assertEqual(os.lstat("a/A1").st_ino, os.lstat("a/B1").st_ino)
