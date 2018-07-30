@@ -1,4 +1,4 @@
-# Hardlink
+# HardlinkPy
 Scan for and hardlink identical files.
 
 ## Install (Linux)
@@ -9,10 +9,11 @@ Scan for and hardlink identical files.
 ```
 usage: hardlink.py [-h] [--install] [-d] [-f] [-n] [-p] [-P] [-q] [-o]
                    [-s MINIMUM_SIZE] [-S MAXIMUM_SIZE] [-T] [-v LEVEL]
-                   [-x REGEX] [-m PATTERN]
+                   [-x REGEX] [-m PATTERN] [-Y]
                    [directories [directories ...]]
 
-hardlink.py version 18.07. Scan for and hardlink identical files. https://github.com/wolfospealain/hardlink
+hardlink.py version 18.07. Scan for and hardlink identical files.
+https://github.com/wolfospealain/hardlink
 
 positional arguments:
   directories           one or more search directories
@@ -41,6 +42,8 @@ optional arguments:
                         specify multiple times)
   -m PATTERN, --match PATTERN
                         shell pattern used to match files
+  -Y, --no-confirm      hardlink without confirmation
+
 ```
 
 ## Compatibility
