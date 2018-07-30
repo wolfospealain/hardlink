@@ -2,12 +2,13 @@
 
 """
 Scan for and hardlink identical files.
-https://github.com/wolfospealain/hardlink
+https://github.com/wolfospealain/hardlinkpy
 Wolf Ó Spealáin, July 2018
 Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses/gpl.html
 Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
-from the original by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/.
-Restructured and refactored as Python 3 object-oriented code: new database structure and algorithm development.
+from the original Python code by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/,
+from the original hardlink.c code by Jakub Jelinek;
+restructured and refactored as Python 3 object-oriented code: new database structure and algorithm development.
 """
 
 import subprocess, sys, os, re, time, fnmatch, filecmp, argparse, logging
@@ -20,7 +21,6 @@ class File:
         self.inode = directory_entry.stat().st_ino
         self.device = directory_entry.stat().st_dev
         self.size = directory_entry.stat().st_size
-        self.links = directory_entry.stat().st_nlink
         self.time = directory_entry.stat().st_mtime
         self.access_time = directory_entry.stat().st_atime
         self.mode = directory_entry.stat().st_mode
@@ -28,7 +28,10 @@ class File:
         self.gid = directory_entry.stat().st_gid
         self.path = directory_entry.path
         self.name = directory_entry.name
-        self.files = {self.path: (self.links, 1)}  # record of inode filenames, past links and new links
+        self.links = directory_entry.stat().st_nlink
+        self.new_links = 0
+        self.files = {
+            self.path: (self.inode, self.links, 0)}  # record of filenames, original inode, past links and new links
 
     def hardlink(self, other, dry_run=False, verbose=0):
         """Hardlink two inodes together, keeping latest attributes. Backtrack through any unlinked files. Returns updated source file object and any cleared file object."""
@@ -42,42 +45,40 @@ class File:
             source = self
             destination = other
             empty = False
-        for link in destination.files:
+        for filename in destination.files:
             # attempt file rename
-            temporary_name = link + ".$$$___cleanit___$$$"
+            temporary_name = filename + ".$$$___cleanit___$$$"
             try:
                 if not dry_run:
-                    os.rename(link, temporary_name)
+                    os.rename(filename, temporary_name)
             except OSError as error:
-                print("\nERROR: Failed to rename: %s to %s: %s" % (link, temporary_name, error))
+                print("\nERROR: Failed to rename: %s to %s: %s" % (filename, temporary_name, error))
                 return False, False
             else:
                 # attempt hardlink
                 try:
                     if not dry_run:
-                        logging.debug("HARDLINKING " + source.path + " " + link)
-                        os.link(source.path, link)
+                        logging.debug("HARDLINKING " + source.path + " " + filename)
+                        os.link(source.path, filename)
                 except Exception as error:
-                    print("\nFailed to hardlink: %s to %s: %s" % (source.path, link, error))
+                    print("\nFailed to hardlink: %s to %s: %s" % (source.path, filename, error))
                     # attempt recovery
                     try:
-                        os.rename(temporary_name, link)
+                        os.rename(temporary_name, filename)
                     except Exception as error:
-                        print("\nALERT: Failed to rename back %s to %s: %s" % (temporary_name, link, error))
+                        print("\nALERT: Failed to rename back %s to %s: %s" % (temporary_name, filename, error))
                     return False, False
                 else:
                     # hardlink succeeded, update links
-                    source.files.update({source.path: (source.files[source.path][0], source.files[source.path][1] + 1)})
-                    logging.debug("SOURCE " + source.path + " " +str(source.files[source.path][0]) + ", " +str(source.files[source.path][1]))
-                    logging.debug("DESTINATION " + link + " " +str(destination.files[link][0] - 1) + ", 1")
-                    source.files.update({link: (destination.files[link][0] - 1, 1)})
-                    source.links += 1
+                    logging.debug("SOURCE " + source.path + " " + str(source.links))
+                    logging.debug("DESTINATION " + filename + " " + str(destination.files[filename][1]))
+                    source.update(filename, destination.inode, destination.files[filename][1], 1)
                     # update to latest attributes
                     if destination.time > source.time:
                         try:
                             if not dry_run:
-                                os.chown(link, destination.uid, destination.gid)
-                                os.utime(link, (destination.access_time, destination.time))
+                                os.chown(filename, destination.uid, destination.gid)
+                                os.utime(filename, (destination.access_time, destination.time))
                                 source.access_time = destination.access_time
                         except Exception as error:
                             print("\nERROR: Failed to update file attributes: %s" % error)
@@ -90,13 +91,21 @@ class File:
                         os.unlink(temporary_name)
                     if verbose >= 1:
                         if dry_run:
-                            print("\nDry Run: %s" % source.path)
+                            print("\nDry Run: ", end="")
                         else:
-                            print("\n Linked: %s" % source.path)
-                        print("     to: %s" % link)
-                        print("         saving %s" % human(destination.size if destination.links == 0 else 0))
-            source.links += destination.links - 1
+                            print("\n Linked: ", end="")
+                        print("%s (%i links)" % (source.path, source.links - 1))
+                        print("     to: %s (%i links)" % (filename, source.files[filename][1]))
+                        print("         saving %s" % human(destination.size if source.files[filename][1] == 1 else 0))
         return source, empty
+
+    def update(self, filename, inode, links, new):
+        """Add new filename to the file and update link counts."""
+
+        if new:
+            self.links += 1
+            self.new_links += 1
+        self.files.update({filename: (inode, links, new)})
 
     def __eq__(self, other):
         return self.inode == other.inode
@@ -110,6 +119,7 @@ class FileDatabase:
 
     def __init__(self):
         self.start_time = time.time()
+        self.skipped = 0
         self.fingerprints = {}
 
     def database_dump(self):
@@ -118,11 +128,15 @@ class FileDatabase:
         for fingerprint in self.fingerprints:
             print(" +-" + str(fingerprint))
             for inode in self.fingerprints[fingerprint]:
-                print("\n    " + str(inode) + " " + time.ctime(self.fingerprints[fingerprint][inode].time))
+                print(
+                    "\n    " + str(inode) + " " + time.ctime(self.fingerprints[fingerprint][inode].time) + " - " + str(
+                        self.fingerprints[fingerprint][inode].links) + ", " + str(
+                        self.fingerprints[fingerprint][inode].new_links))
                 for file in self.fingerprints[fingerprint][inode].files:
-                    print("       " + file + " - " + str(
-                        self.fingerprints[fingerprint][inode].files[file][0]) + ", " + str(
-                        self.fingerprints[fingerprint][inode].files[file][1]))
+                    print("       " + str(
+                        self.fingerprints[fingerprint][inode].files[file][0]) + " " + file + " " + str(
+                        self.fingerprints[fingerprint][inode].files[file][1]) + ", " + str(
+                        self.fingerprints[fingerprint][inode].files[file][2]))
         print()
 
     def fingerprint(self, file, fingerprint):
@@ -155,24 +169,48 @@ class FileDatabase:
     def lookup(self, fingerprint, inode):
         return self.fingerprints[fingerprint][inode]
 
-    def report_links(self, already=False):
-        if already:
-            index = 0
-            text = "\nALREADY HARDLINKED"
-        else:
-            index = 1
-            text = "\nHARDLINKED"
+    def report_already_linked(self):
+        inodes = {}
         for fingerprint in self.fingerprints:
             for inode in self.fingerprints[fingerprint]:
-                if inode[0] or already:
+                for filename in self.fingerprints[fingerprint][inode].files:
+                    if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
+                        for link in self.fingerprints[fingerprint][inode].files:
+                            if self.fingerprints[fingerprint][inode].files[link][0] in inodes.keys():
+                                inodes[self.fingerprints[fingerprint][inode].files[link][0]][1].append(link)
+                            else:
+                                inodes.update({self.fingerprints[fingerprint][inode].files[link][0]: (
+                                self.fingerprints[fingerprint][inode].size, [link])})
+                        break
+        text = ""
+        for inode in inodes.keys():
+            text += "\n\nInode " + str(inode) + " (" + human(inodes[inode][0]) + ") Linked:\n"
+            for filename in inodes[inode][1]:
+                text += "\n " + str(filename)
+        if text != "":
+            text = "\nALREADY HARDLINKED" + text
+        else:
+            text = "\nNO FILES ALREADY HARDLINKED"
+        return text
+
+    def report_links(self):
+        text = ""
+        for fingerprint in self.fingerprints:
+            for inode in self.fingerprints[fingerprint]:
+                if inode[0] and self.fingerprints[fingerprint][inode].new_links > 0:
                     for filename in self.fingerprints[fingerprint][inode].files:
-                        if self.fingerprints[fingerprint][inode].files[filename][index] > 1:
+                        if self.fingerprints[fingerprint][inode].files[filename][2] > 0:
                             text += "\n\nInode " + str(self.fingerprints[fingerprint][inode].inode) + " (" + human(
-                                self.fingerprints[fingerprint][inode].size) + ") Linked:"
+                                self.fingerprints[fingerprint][inode].size) + ") Linked:\n"
+                            text += "  " + self.fingerprints[fingerprint][inode].path
                             for link in self.fingerprints[fingerprint][inode].files:
-                                if self.fingerprints[fingerprint][inode].files[link][index] > 1 or not already:
-                                    text += "\n " + link
+                                if self.fingerprints[fingerprint][inode].files[link][2] > 0:
+                                    text += "\n +" + link
                             break
+        if text != "":
+            text = "\nHARDLINKED" + text
+        else:
+            text = "\nNO FILES HARDLINKED"
         return text
 
     def statistics(self):
@@ -190,27 +228,30 @@ class FileDatabase:
                 saved_already = 0
                 saved_bytes = 0
                 size = self.fingerprints[fingerprint][inode].size
-                for file in self.fingerprints[fingerprint][inode].files:
+                for filename in self.fingerprints[fingerprint][inode].files:
                     if inode[0]:
                         file_count += 1
-                        if self.fingerprints[fingerprint][inode].files[file][1] > 1:
-                            new_links = self.fingerprints[fingerprint][inode].files[file][1] - 1
-                            saved_bytes += size * new_links
-                            if self.fingerprints[fingerprint][inode].files[file][0] > 1:
-                                updated_links += new_links
+                        if self.fingerprints[fingerprint][inode].files[filename][2] > 0:
+                            new_links = 1
+                            if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
+                                updated_links += 1
                             else:
+                                saved_bytes += size
                                 added_links += new_links
-                    if self.fingerprints[fingerprint][inode].files[file][0] > 1:
+                    if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
                         saved_already += size
                         already_links += 1
                 if saved_already:
                     total_saved_already += saved_already - size
+                if already_links:
+                    already_links -= 1
                 total_saved_bytes += saved_bytes
         run_time = round((time.time() - self.start_time), 3)
         return "\nSTATISTICS\n\nInodes:\t\t" + str(inode_count) + "\nFiles:\t\t" + str(
             file_count) + "\nFingerprints:\t" + str(fingerprint_count) + "\nAlready Linked:\t" + str(
             already_links) + "\nSaved Already:\t" + str(
-            human(total_saved_already) + "\nUpdated Links:\t" + str(updated_links) + "\nAdded Links:\t" + str(added_links) + "\nSaved Bytes:\t" + str(
+            human(total_saved_already) + "\nSkipped:\t" + str(self.skipped) + "\nUpdated Links:\t" + str(
+                updated_links) + "\nAdded Links:\t" + str(added_links) + "\nSaved Bytes:\t" + str(
                 human(total_saved_bytes)) + "\nRun Time:\t" + str(run_time) + "s")
 
 
@@ -230,7 +271,7 @@ class SearchSpace:
         self.check_properties = check_properties
         self.database = FileDatabase()
 
-    def scan(self, verbose, dry_run=False):
+    def scan(self, verbose=0, dry_run=False, no_confirm=False):
         """Recursively scan directories checking for hardlinkable files."""
         while self.directories:
             directory = self.directories.pop() + "/"
@@ -240,6 +281,7 @@ class SearchSpace:
             except OSError as error:
                 print(directory, error)
                 continue
+            inodes_hardlinked = []
             for directory_entry in directory_entries:
                 # exclude symbolic link
                 if directory_entry.is_symlink():
@@ -258,10 +300,10 @@ class SearchSpace:
                 else:
                     new_file = File(directory_entry)
                     logging.debug("PROCESSING " + new_file.path + " " + str(new_file.inode))
-                    # is a file within size limits, under maximum links
+                    # is a file within size limits, no zero size, under maximum links
                     if (new_file.size >= self.minimum_size) \
                             and ((new_file.size <= self.maximum_size) or (self.maximum_size == 0)) \
-                            and (new_file.links < self.maximum_links):
+                            and (new_file.links < self.maximum_links) and new_file.size > 0:
                         # matching requirements
                         if self.matching:
                             if not fnmatch.fnmatch(new_file.name, self.matching):
@@ -279,7 +321,7 @@ class SearchSpace:
                                 known_file = self.database.lookup(fingerprint, inode)
                                 # already hardlinked
                                 if (new_file.device, new_file.inode) == inode:
-                                    known_file.files.update({new_file.path: (known_file.links, 1)})
+                                    known_file.update(new_file.path, new_file.inode, known_file.links, 0)
                                     self.database.update(known_file, fingerprint)
                                     break
                             else:
@@ -298,11 +340,36 @@ class SearchSpace:
                                             print("Comparing: %s" % new_file.path)
                                             print("       to: %s" % known_file.path)
                                         if filecmp.cmp(new_file.path, known_file.path, shallow=False):
-                                            update_inode, clear_inode = known_file.hardlink(new_file, dry_run, verbose)
-                                            if update_inode:
-                                                self.database.update(update_inode, fingerprint)
-                                            if clear_inode:
-                                                self.database.archive(clear_inode, fingerprint)
+                                            # adjust link count for same inode hardlinked this directory
+                                            if new_file.inode in inodes_hardlinked:
+                                                new_file.files[new_file.path] = (new_file.inode,
+                                                                                 new_file.files[new_file.path][
+                                                                                     1] - inodes_hardlinked.count(
+                                                                                     new_file.inode), 0)
+                                            # hardlink files
+                                            if not no_confirm:
+                                                answer = input(
+                                                    "\nHardlinking:\n\n    " + known_file.path + "\n to " + new_file.path + "\n\nConfirm? [yes/No/all] ").lower()
+                                                if answer[0] == "y" or answer[0] == "a":
+                                                    ok = True
+                                                    if answer[0] == "a":
+                                                        no_confirm = True
+                                                else:
+                                                    ok = False
+                                            else:
+                                                ok = True
+                                            if ok:
+                                                update_inode, clear_inode = known_file.hardlink(new_file, dry_run,
+                                                                                                verbose)
+                                                if update_inode:
+                                                    self.database.update(update_inode, fingerprint)
+                                                if clear_inode:
+                                                    self.database.archive(clear_inode, fingerprint)
+                                                # keep track of inodes hardlinked this directory
+                                                inodes_hardlinked.append(new_file.inode)
+                                            else:
+                                                print("Skipped.")
+                                                self.database.skipped += 1
                                             break
                                 else:
                                     self.database.new(new_file, fingerprint)
@@ -324,7 +391,7 @@ def human(number):
 
 def parse_command_line(version, install_path):
     description = "%(prog)s version " + version + ". " \
-                  + "Scan for and hardlink identical files. https://github.com/wolfospealain/hardlink"
+                  + "Scan for and hardlink identical files. https://github.com/wolfospealain/hardlinkpy"
     parser = argparse.ArgumentParser(description=description)
     if ".py" in sys.argv[0]:
         parser.add_argument("--install", action="store_true", dest="install", default=False,
@@ -355,6 +422,8 @@ def parse_command_line(version, install_path):
                         action="append", dest="excluding", default=[])
     parser.add_argument("-m", "--match", help="shell pattern used to match files", metavar="PATTERN", action="store",
                         dest="matching", default=None)
+    parser.add_argument("-Y", "--no-confirm", help="hardlink without confirmation", action="store_true",
+                        dest="no_confirm", default=False)
     parser.add_argument("directories", help="one or more search directories", nargs='*')
     args = parser.parse_args()
     if args.directories:
@@ -401,15 +470,15 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     search = SearchSpace(directories, args.matching, args.excluding, args.minimum_size, args.maximum_size,
                          args.check_name, args.check_timestamp, args.check_properties)
-    if search.scan(args.verbose, args.dry_run):
+    if search.scan(args.verbose, args.dry_run, args.no_confirm):
         if args.log:
-            print(search.database.report_links(already=True))
+            print(search.database.report_already_linked())
         if args.output:
             print(search.database.report_links())
         if args.statistics:
             print(search.database.statistics())
     if args.dry_run:
-        print("\nDRY RUN ONLY: No files were changed.")
+        print("\nDRY RUN ONLY: No files were changed.\n")
 
 
 if __name__ == '__main__':
