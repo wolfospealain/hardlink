@@ -8,7 +8,8 @@ Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses
 Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
 from the original Python code by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/,
 from the original hardlink.c code by Jakub Jelinek;
-restructured and refactored as Python 3 object-oriented code: new database structure and algorithm development.
+restructured and refactored as Python 3 object-oriented code:
+new database structure and algorithm development for complete single-pass hardlinking.
 """
 
 import subprocess, sys, os, re, time, fnmatch, filecmp, argparse, logging
@@ -29,22 +30,22 @@ class File:
         self.path = directory_entry.path
         self.name = directory_entry.name
         self.links = directory_entry.stat().st_nlink
-        self.new_links = 0
         self.files = {
-            self.path: (self.inode, self.links, 0)}  # record of filenames, original inode, past links and new links
+            self.path: (self.inode, self.links, 0)}  # record of original filenames, inode, links, current links and new links
 
     def hardlink(self, other, dry_run=False, verbose=0):
         """Hardlink two inodes together, keeping latest attributes. Backtrack through any unlinked files. Returns updated source file object and any cleared file object."""
         # use the file with most hardlinks as source
+        linked_inodes = []
         if other.links > self.links:
             logging.debug("BACKTRACKING")
             source = other
             destination = self
-            empty = self
+            redundant = self
         else:
             source = self
             destination = other
-            empty = False
+            redundant = False
         for filename in destination.files:
             # attempt file rename
             temporary_name = filename + ".$$$___cleanit___$$$"
@@ -69,10 +70,17 @@ class File:
                         print("\nALERT: Failed to rename back %s to %s: %s" % (temporary_name, filename, error))
                     return False, False
                 else:
-                    # hardlink succeeded, update links
+                    # hardlink succeeded
                     logging.debug("SOURCE " + source.path + " " + str(source.links))
-                    logging.debug("DESTINATION " + filename + " " + str(destination.files[filename][1]))
-                    source.update(filename, destination.inode, destination.files[filename][1], 1)
+                    logging.debug("DESTINATION " + filename + " " + str(destination.get_original_links(filename)))
+                    # adjust link counts for repeated inodes
+                    inode = destination.get_inode(filename)
+                    if inode in linked_inodes:
+                        destination.decrement(filename, linked_inodes.count(inode))
+                    linked_inodes.append(inode)
+                    # update file links
+                    source.new(filename, destination.get_inode(filename), destination.get_original_links(filename), source.links - destination.get_links(filename) + 1)
+                    source.increment(source.path)
                     # update to latest attributes
                     if destination.time > source.time:
                         try:
@@ -95,17 +103,32 @@ class File:
                         else:
                             print("\n Linked: ", end="")
                         print("%s (%i links)" % (source.path, source.links - 1))
-                        print("     to: %s (%i links)" % (filename, source.files[filename][1]))
-                        print("         saving %s" % human(destination.size if source.files[filename][1] == 1 else 0))
-        return source, empty
+                        print("     to: %s (%i links)" % (filename, destination.get_links(filename)))
+                        print("         %s saved" % human(destination.size if destination.get_links(filename) == 1 else 0))
+        return source, redundant
 
-    def update(self, filename, inode, links, new):
-        """Add new filename to the file and update link counts."""
-
+    def new(self, filename, inode, links, new):
         if new:
             self.links += 1
-            self.new_links += 1
         self.files.update({filename: (inode, links, new)})
+
+    def increment(self, filename):
+        self.files[filename] = (self.get_inode(filename), self.get_original_links(filename), self.get_new_links(filename) + 1)
+
+    def decrement(self, filename, links):
+        self.files[filename] = (self.get_inode(filename), self.get_original_links(filename) - links, self.get_new_links(filename))
+
+    def get_inode(self, filename):
+        return self.files[filename][0]
+
+    def get_original_links(self, filename):
+        return self.files[filename][1]
+
+    def get_new_links(self, filename):
+        return self.files[filename][2]
+
+    def get_links(self, filename):
+        return self.get_new_links(filename) + self.get_original_links(filename)
 
     def __eq__(self, other):
         return self.inode == other.inode
@@ -128,15 +151,12 @@ class FileDatabase:
         for fingerprint in self.fingerprints:
             print(" +-" + str(fingerprint))
             for inode in self.fingerprints[fingerprint]:
-                print(
-                    "\n    " + str(inode) + " " + time.ctime(self.fingerprints[fingerprint][inode].time) + " - " + str(
-                        self.fingerprints[fingerprint][inode].links) + ", " + str(
-                        self.fingerprints[fingerprint][inode].new_links))
+                print("\n    " + str(inode) + " " + time.ctime(self.fingerprints[fingerprint][inode].time))
                 for file in self.fingerprints[fingerprint][inode].files:
                     print("       " + str(
-                        self.fingerprints[fingerprint][inode].files[file][0]) + " " + file + " " + str(
-                        self.fingerprints[fingerprint][inode].files[file][1]) + ", " + str(
-                        self.fingerprints[fingerprint][inode].files[file][2]))
+                        self.fingerprints[fingerprint][inode].get_inode(file)) + " " + file + " " + str(
+                        self.fingerprints[fingerprint][inode].get_original_links(file)) + ", " + str(
+                        self.fingerprints[fingerprint][inode].get_new_links(file)))
         print()
 
     def fingerprint(self, file, fingerprint):
@@ -156,13 +176,9 @@ class FileDatabase:
         if logging.getLogger().level == logging.DEBUG:
             self.database_dump()
 
-    def archive(self, file, fingerprint):
-        """To archive an inode that has no more links change the device to None."""
-        logging.debug("ARCHIVE INODE " + str(file.inode))
-        if (file.device, file.inode) in self.fingerprints[fingerprint]:
-            self.fingerprints[fingerprint][(None, file.inode)] = self.fingerprints[fingerprint][
-                (file.device, file.inode)]
-            del self.fingerprints[fingerprint][(file.device, file.inode)]
+    def delete(self, file, fingerprint):
+        logging.debug("DELETE INODE " + str(file.inode))
+        del self.fingerprints[fingerprint][(file.device, file.inode)]
         if logging.getLogger().level == logging.DEBUG:
             self.database_dump()
 
@@ -174,19 +190,17 @@ class FileDatabase:
         for fingerprint in self.fingerprints:
             for inode in self.fingerprints[fingerprint]:
                 for filename in self.fingerprints[fingerprint][inode].files:
-                    if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
-                        for link in self.fingerprints[fingerprint][inode].files:
-                            if self.fingerprints[fingerprint][inode].files[link][0] in inodes.keys():
-                                inodes[self.fingerprints[fingerprint][inode].files[link][0]][1].append(link)
-                            else:
-                                inodes.update({self.fingerprints[fingerprint][inode].files[link][0]: (
-                                self.fingerprints[fingerprint][inode].size, [link])})
-                        break
+                    if self.fingerprints[fingerprint][inode].get_original_links(filename) > 1:
+                        if self.fingerprints[fingerprint][inode].get_inode(filename) in inodes.keys():
+                            inodes[self.fingerprints[fingerprint][inode].get_inode(filename)][1].append(filename)
+                        else:
+                            inodes.update({self.fingerprints[fingerprint][inode].get_inode(filename): (
+                            self.fingerprints[fingerprint][inode].size, [filename])})
         text = ""
-        for inode in inodes.keys():
-            text += "\n\nInode " + str(inode) + " (" + human(inodes[inode][0]) + ") Linked:\n"
-            for filename in inodes[inode][1]:
-                text += "\n " + str(filename)
+        for inode in sorted(inodes.keys()):
+            text += "\n\nInode " + str(inode) + " (" + human(inodes[inode][0]) + ") Linked:"
+            for filename in sorted(inodes[inode][1]):
+                text += "\n  " + str(filename)
         if text != "":
             text = "\nALREADY HARDLINKED" + text
         else:
@@ -195,18 +209,21 @@ class FileDatabase:
 
     def report_links(self):
         text = ""
-        for fingerprint in self.fingerprints:
-            for inode in self.fingerprints[fingerprint]:
-                if inode[0] and self.fingerprints[fingerprint][inode].new_links > 0:
-                    for filename in self.fingerprints[fingerprint][inode].files:
-                        if self.fingerprints[fingerprint][inode].files[filename][2] > 0:
-                            text += "\n\nInode " + str(self.fingerprints[fingerprint][inode].inode) + " (" + human(
-                                self.fingerprints[fingerprint][inode].size) + ") Linked:\n"
-                            text += "  " + self.fingerprints[fingerprint][inode].path
-                            for link in self.fingerprints[fingerprint][inode].files:
-                                if self.fingerprints[fingerprint][inode].files[link][2] > 0:
-                                    text += "\n +" + link
-                            break
+        for fingerprint in sorted(self.fingerprints.keys()):
+            for inode in sorted(self.fingerprints[fingerprint].keys()):
+                if self.fingerprints[fingerprint][inode].get_new_links(self.fingerprints[fingerprint][inode].path) > 0:
+                    text += "\n\nInode " + str(self.fingerprints[fingerprint][inode].inode) + " (" + human(
+                        self.fingerprints[fingerprint][inode].size) + ") Linked:\n"
+                    text += "  " + self.fingerprints[fingerprint][inode].path
+                    for link in sorted(self.fingerprints[fingerprint][inode].files.keys()):
+                        if self.fingerprints[fingerprint][inode].get_new_links(link) > 0 and link != self.fingerprints[fingerprint][inode].path:
+                            text += "\n "
+                            if self.fingerprints[fingerprint][inode].get_original_links(link) == 1:
+                                text += "+"
+                            else:
+                                text += " "
+                            text += link
+                    break
         if text != "":
             text = "\nHARDLINKED" + text
         else:
@@ -231,14 +248,13 @@ class FileDatabase:
                 for filename in self.fingerprints[fingerprint][inode].files:
                     if inode[0]:
                         file_count += 1
-                        if self.fingerprints[fingerprint][inode].files[filename][2] > 0:
-                            new_links = 1
-                            if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
+                        if self.fingerprints[fingerprint][inode].get_new_links(filename) > 0:
+                            if self.fingerprints[fingerprint][inode].get_original_links(filename) > 1:
                                 updated_links += 1
-                            else:
+                            elif self.fingerprints[fingerprint][inode].get_inode(filename) != self.fingerprints[fingerprint][inode].inode:
                                 saved_bytes += size
-                                added_links += new_links
-                    if self.fingerprints[fingerprint][inode].files[filename][1] > 1:
+                                added_links += 1
+                    if self.fingerprints[fingerprint][inode].get_original_links(filename) > 1:
                         saved_already += size
                         already_links += 1
                 if saved_already:
@@ -252,7 +268,7 @@ class FileDatabase:
             already_links) + "\nSaved Already:\t" + str(
             human(total_saved_already) + "\nSkipped:\t" + str(self.skipped) + "\nUpdated Links:\t" + str(
                 updated_links) + "\nAdded Links:\t" + str(added_links) + "\nSaved Bytes:\t" + str(
-                human(total_saved_bytes)) + "\nRun Time:\t" + str(run_time) + "s")
+                human(total_saved_bytes)) + "\nRun Time:\t" + str(run_time) + "s\n")
 
 
 class SearchSpace:
@@ -321,7 +337,7 @@ class SearchSpace:
                                 known_file = self.database.lookup(fingerprint, inode)
                                 # already hardlinked
                                 if (new_file.device, new_file.inode) == inode:
-                                    known_file.update(new_file.path, new_file.inode, known_file.links, 0)
+                                    known_file.new(new_file.path, new_file.inode, known_file.links, 0)
                                     self.database.update(known_file, fingerprint)
                                     break
                             else:
@@ -334,7 +350,8 @@ class SearchSpace:
                                             and (new_file.mode == known_file.mode or not self.check_properties) \
                                             and (new_file.uid == known_file.uid or not self.check_properties) \
                                             and (new_file.gid == known_file.gid or not self.check_properties) \
-                                            and (new_file.time == known_file.time or not self.check_timestamp):
+                                            and (new_file.time == known_file.time or not self.check_timestamp) \
+                                            and (new_file.device == known_file.device):
                                         # check if equal contents
                                         if verbose > 1:
                                             print("Comparing: %s" % new_file.path)
@@ -342,10 +359,7 @@ class SearchSpace:
                                         if filecmp.cmp(new_file.path, known_file.path, shallow=False):
                                             # adjust link count for same inode hardlinked this directory
                                             if new_file.inode in inodes_hardlinked:
-                                                new_file.files[new_file.path] = (new_file.inode,
-                                                                                 new_file.files[new_file.path][
-                                                                                     1] - inodes_hardlinked.count(
-                                                                                     new_file.inode), 0)
+                                                new_file.decrement(new_file.path, inodes_hardlinked.count(new_file.inode))
                                             # hardlink files
                                             if not no_confirm:
                                                 answer = input(
@@ -359,14 +373,16 @@ class SearchSpace:
                                             else:
                                                 ok = True
                                             if ok:
-                                                update_inode, clear_inode = known_file.hardlink(new_file, dry_run,
+                                                update_inode, redundant_inode = known_file.hardlink(new_file, dry_run,
                                                                                                 verbose)
                                                 if update_inode:
                                                     self.database.update(update_inode, fingerprint)
-                                                if clear_inode:
-                                                    self.database.archive(clear_inode, fingerprint)
-                                                # keep track of inodes hardlinked this directory
-                                                inodes_hardlinked.append(new_file.inode)
+                                                if redundant_inode:
+                                                    self.database.delete(redundant_inode, fingerprint)
+                                                    # keep track of inodes hardlinked this directory
+                                                    inodes_hardlinked.append(known_file.inode)
+                                                else:
+                                                    inodes_hardlinked.append(new_file.inode)
                                             else:
                                                 print("Skipped.")
                                                 self.database.skipped += 1
