@@ -57,7 +57,8 @@ Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses
 Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
 from the original Python code by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/,
 from the original hardlink.c code by Jakub Jelinek;
-restructured and refactored as Python 3 object-oriented code: new database structure and algorithm development.
+restructured and refactored as Python 3 object-oriented code:
+new database structure and algorithm development for complete single-pass hardlinking.
 
 ## Compatibility
 
