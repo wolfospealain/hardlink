@@ -1,5 +1,5 @@
 # HardlinkPy
-Scan for and hardlink identical files.
+Scan for and hardlink identical files. Rewritten in Python 3 object-oriented code: with a new database structure and algorithm development for complete single-pass hardlinking.
 
 ## Install (Linux)
 ```sudo python3 ./hardlink.py --install```
