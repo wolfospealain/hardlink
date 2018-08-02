@@ -39,7 +39,6 @@ class File:
         # use the file with most hardlinks as source
         linked_inodes = []
         if other.links > self.links:
-            print("BACKTRACKING")
             logging.debug("BACKTRACKING")
             source = other
             destination = self
