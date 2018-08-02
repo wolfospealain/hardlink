@@ -1,19 +1,20 @@
 # HardlinkPy
-Scan for and hardlink identical files. Rewritten in Python 3 object-oriented code: with a new database structure and algorithm development for complete single-pass hardlinking.
+Scan for and hardlink identical files.
+
+Rewritten in Python 3 object-oriented code: new database structure and algorithm development for complete single-pass hardlinking, persistent database file option for testing, data collection on dry-run passes, and incremental scans.
 
 ## Install (Linux)
 ```sudo python3 ./hardlink.py --install```
 
 ## Usage
-
 ```
-usage: hardlink.py [-h] [--install] [-d] [-f] [-n] [-p] [-P] [-q] [-o]
+usage: hardlink.py [-h] [--install] [-d] [-D] [-f] [-n] [-p] [-P] [-q] [-o]
                    [-s MINIMUM_SIZE] [-S MAXIMUM_SIZE] [-T] [-v LEVEL]
                    [-x REGEX] [-m PATTERN] [-Y]
                    [directories [directories ...]]
 
 hardlink.py version 18.07. Scan for and hardlink identical files.
-https://github.com/wolfospealain/hardlink
+https://github.com/wolfospealain/hardlinkpy
 
 positional arguments:
   directories           one or more search directories
@@ -23,6 +24,7 @@ optional arguments:
   --install             install to Linux destination path (default:
                         /usr/local/bin)
   -d, --debug           debugging mode
+  -D, --database        use persistent database file
   -f, --filenames-equal
                         filenames have to be identical
   -n, --dry-run         dry-run only, no changes to files
@@ -43,7 +45,6 @@ optional arguments:
   -m PATTERN, --match PATTERN
                         shell pattern used to match files
   -Y, --no-confirm      hardlink without confirmation
-
 ```
 
 ## History
@@ -58,7 +59,8 @@ Forked from hardlink.py https://github.com/akaihola/hardlinkpy,
 from the original Python code by John L. Villalovos https://code.google.com/archive/p/hardlinkpy/,
 from the original hardlink.c code by Jakub Jelinek;
 restructured and refactored as Python 3 object-oriented code:
-new database structure and algorithm development for complete single-pass hardlinking.
+new database structure and algorithm development for complete single-pass hardlinking,
+persistent database file option for testing, data collection on dry-run passes, and incremental scans.
 
 ## Compatibility
 
