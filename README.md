@@ -1,6 +1,8 @@
 # HardlinkPy
 Scan for and hardlink identical files.
 
+Effectively works to hardlink all indentical files where previous implementations of the hardlink command have failed with clusters of hardlinks.
+
 Rewritten in Python 3 object-oriented code: new database structure and algorithm development for complete single-pass hardlinking, persistent database file option for testing, data collection on dry-run passes, and incremental scans.
 
 ## Install (Linux)
