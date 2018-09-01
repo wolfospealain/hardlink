@@ -2,6 +2,7 @@
 
 """
 Scan for and hardlink identical files.
+Effectively works to hardlink all indentical files where previous implementations of the hardlink command have failed with clusters of hardlinks.
 https://github.com/wolfospealain/hardlinkpy
 Wolf Ó Spealáin, July 2018
 Licenced under the GNU General Public License v3.0. https://www.gnu.org/licenses/gpl.html
@@ -62,10 +63,13 @@ class File:
                 # attempt hardlink
                 try:
                     if not dry_run:
-                        logging.debug("HARDLINKING " + strip_invalid_characters(source.path) + " " + strip_invalid_characters(filename))
+                        logging.debug(
+                            "HARDLINKING " + strip_invalid_characters(source.path) + " " + strip_invalid_characters(
+                                filename))
                         os.link(source.path, filename)
                 except Exception as error:
-                    print("\nERROR: Failed to hardlink: %s to %s: %s" % (strip_invalid_characters(source.path), strip_invalid_characters(filename), error))
+                    print("\nERROR: Failed to hardlink: %s to %s: %s" % (
+                        strip_invalid_characters(source.path), strip_invalid_characters(filename), error))
                     # attempt recovery
                     try:
                         os.rename(temporary_name, filename)
@@ -75,14 +79,16 @@ class File:
                 else:
                     # hardlink succeeded
                     logging.debug("SOURCE " + strip_invalid_characters(source.path) + " " + str(source.links))
-                    logging.debug("DESTINATION " + strip_invalid_characters(filename) + " " + str(destination.original_links(filename)))
+                    logging.debug("DESTINATION " + strip_invalid_characters(filename) + " " + str(
+                        destination.original_links(filename)))
                     # adjust link counts for repeated inodes
                     inode = destination.original_inode(filename)
                     if inode in linked_inodes:
                         destination.decrement_links(filename, linked_inodes.count(inode))
                     linked_inodes.append(inode)
                     # update file links
-                    source.new_filename(filename, destination.original_inode(filename), destination.original_links(filename),
+                    source.new_filename(filename, destination.original_inode(filename),
+                                        destination.original_links(filename),
                                         source.links - destination.total_links(filename) + 1)
                     source.increment_links(source.path)
                     # update to latest attributes
@@ -129,7 +135,7 @@ class File:
 
     def inode(self):
         return self.inodes[0]
-    
+
     def original_inode(self, filename):
         return self.files[filename][0]
 
@@ -159,14 +165,16 @@ class Database:
 
     def text_dump(self):
         """Text dump from database. For debugging, development and testing."""
-        text= "\n"
+        text = "\n"
         for fingerprint in self.fingerprints:
             text += "\n +-" + str(fingerprint)
             for inode in self.fingerprints[fingerprint]:
                 file = self.fingerprints[fingerprint][inode]
                 text += "\n\n    " + str(inode) + " " + time.ctime(file.time) + " - " + str(file.links)
                 for filename in file.files:
-                    text += "\n       " + str(file.original_inode(filename)) + " " + strip_invalid_characters(filename) + " " + str(file.original_links(filename)) + ", " + str(file.new_links(filename)) + "\n"
+                    text += "\n       " + str(file.original_inode(filename)) + " " + strip_invalid_characters(
+                        filename) + " " + str(file.original_links(filename)) + ", " + str(
+                        file.new_links(filename)) + "\n"
         return text + "\n"
 
     def load(self, filename):
@@ -288,9 +296,11 @@ class Database:
                     # adjust statistics for dry run - as link counts don't actually get updated on the device
                     if dry_run and original_inode != file.inode():
                         if original_inode not in links_tally:
-                            links_tally.update({original_inode:(1, original_links, original_links)})
+                            links_tally.update({original_inode: (1, original_links, original_links)})
                         else:
-                            links_tally.update({original_inode: (links_tally[original_inode][0]+1, min(original_links, links_tally[original_inode][1]), max(original_links, links_tally[original_inode][2]))})
+                            links_tally.update({original_inode: (
+                                links_tally[original_inode][0] + 1, min(original_links, links_tally[original_inode][1]),
+                                max(original_links, links_tally[original_inode][2]))})
                 if dry_run:
                     for inode in links_tally:
                         if links_tally[inode][0] == links_tally[inode][2] and links_tally[inode][0] > 1:
@@ -313,7 +323,7 @@ class Database:
                 human(total_saved_bytes)) + "\nRun Time:\t" + str(run_time) + "s\n")
 
 
-class SearchSpace:
+class Search:
     """Defines the hardlink search-space."""
 
     def __init__(self, directories, matching, excluding, minimum_size, maximum_size, check_name, check_timestamp,
@@ -357,7 +367,8 @@ class SearchSpace:
                     self.directories.append(directory_entry.path)
                 else:
                     new_file = File(directory_entry)
-                    logging.debug("PROCESSING " + strip_invalid_characters(new_file.path) + " " + str(new_file.inode()) + " " + str(new_file.links))
+                    logging.debug("PROCESSING " + strip_invalid_characters(new_file.path) + " " + str(
+                        new_file.inode()) + " " + str(new_file.links))
                     # is a file within size limits, no zero size, under maximum links
                     if (new_file.size >= self.minimum_size) \
                             and ((new_file.size <= self.maximum_size) or (self.maximum_size == 0)) \
@@ -385,7 +396,7 @@ class SearchSpace:
                                     self.database.update(known_file, fingerprint)
                                     break
                             else:
-                                # check if hardlinkable: samename, maximum links, properties, owner, group, time, device
+                                # check if hardlinkable: samename, maximum links, properties, owner, group, time
                                 for inode in self.database.fingerprints[fingerprint]:
                                     known_file = self.database.lookup(fingerprint, inode)
                                     if known_file.inode() != new_file.inode() \
@@ -394,8 +405,7 @@ class SearchSpace:
                                             and (new_file.mode == known_file.mode or not self.check_properties) \
                                             and (new_file.uid == known_file.uid or not self.check_properties) \
                                             and (new_file.gid == known_file.gid or not self.check_properties) \
-                                            and (new_file.time == known_file.time or not self.check_timestamp) \
-                                            and (new_file.device == known_file.device):
+                                            and (new_file.time == known_file.time or not self.check_timestamp):
                                         # check if equal contents
                                         if verbose > 1:
                                             print("Comparing: %s" % new_file.path)
@@ -445,8 +455,10 @@ class SearchSpace:
                             self.database.new_fingerprint(new_file, fingerprint)
         return True
 
+
 def strip_invalid_characters(text):
     return str(text.encode("utf-8", "ignore"))
+
 
 def human(number):
     """Humanize numbers, B, KiB, MiB, Gib"""
@@ -466,10 +478,12 @@ def parse_command_line(version, install_path):
     if ".py" in sys.argv[0]:
         parser.add_argument("--install", action="store_true", dest="install", default=False,
                             help="install to Linux destination path (default: " + install_path + ")")
-    parser.add_argument("-d", "--database", help="use persistent database file (hardlink.db)", action="store_true", dest="persistent")
+    parser.add_argument("-d", "--database", help="experimental: use persistent database file (hardlink.db)",
+                        action="store_true", dest="persistent")
     parser.add_argument("-f", "--filenames-equal", help="filenames have to be identical", action="store_true",
                         dest="check_name", default=False)
-    parser.add_argument("-l", "--log", help="debugging mode (log to hardlink.log)", action="store_true", dest="log", default=False)
+    parser.add_argument("-l", "--log", help="debugging mode (log to hardlink.log)", action="store_true", dest="log",
+                        default=False)
     parser.add_argument("-n", "--dry-run", help="dry-run only, no changes to files", action="store_true",
                         dest="dry_run", default=False)
     parser.add_argument("-p", "--print-previous", help="output list of previously created hardlinks",
@@ -493,7 +507,9 @@ def parse_command_line(version, install_path):
                         action="append", dest="excluding", default=[])
     parser.add_argument("-m", "--match", help="shell pattern used to match files", metavar="PATTERN", action="store",
                         dest="matching", default=None)
-    parser.add_argument("-Y", "--no-confirm", help="hardlink without confirmation, hardlink known inodes without recomparing", action="store_true",
+    parser.add_argument("-Y", "--no-confirm",
+                        help="hardlink without confirmation, hardlink known inodes without recomparing",
+                        action="store_true",
                         dest="no_confirm", default=False)
     parser.add_argument("directories", help="one or more search directories", nargs='*')
     args = parser.parse_args()
@@ -544,8 +560,8 @@ def main():
         args.excluding.append(debug_filename)
     if args.persistent:
         args.excluding.append(db_filename)
-    search = SearchSpace(directories, args.matching, args.excluding, args.minimum_size, args.maximum_size,
-                         args.check_name, args.check_timestamp, args.check_properties)
+    search = Search(directories, args.matching, args.excluding, args.minimum_size, args.maximum_size,
+                    args.check_name, args.check_timestamp, args.check_properties)
     if args.persistent:
         search.database.load(db_filename)
     if search.scan(args.verbose, args.dry_run, args.no_confirm):
@@ -561,6 +577,7 @@ def main():
         print("\nDRY RUN ONLY: No files were changed.\n")
     if args.log:
         logging.info(search.database.statistics(args.dry_run))
+
 
 if __name__ == '__main__':
     main()
